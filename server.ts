@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import cors from 'cors';
 import dotenv from 'dotenv';
 import jwt from 'jsonwebtoken';
@@ -10,9 +9,6 @@ import { Strategy as GoogleStrategy, Profile } from 'passport-google-oauth20';
 import { createServer as createViteServer } from 'vite';
 
 dotenv.config();
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 interface AuthUser {
   id: string;
@@ -36,9 +32,11 @@ async function startServer() {
 
   const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
   const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
+
   const GOOGLE_CALLBACK_URL =
     process.env.GOOGLE_CALLBACK_URL ||
     `http://localhost:${PORT}/api/auth/google/callback`;
+
   const JWT_SECRET = process.env.JWT_SECRET;
 
   if (!GOOGLE_CLIENT_ID || !GOOGLE_CLIENT_SECRET || !JWT_SECRET) {
@@ -54,7 +52,12 @@ async function startServer() {
         clientSecret: GOOGLE_CLIENT_SECRET || '',
         callbackURL: GOOGLE_CALLBACK_URL,
       },
-      async (accessToken: string, refreshToken: string, profile: Profile, done) => {
+      async (
+        accessToken: string,
+        refreshToken: string,
+        profile: Profile,
+        done
+      ) => {
         try {
           const email = profile.emails?.[0]?.value || '';
           const existing = users.get(profile.id);
@@ -72,15 +75,21 @@ async function startServer() {
           user.picture = profile.photos?.[0]?.value || '';
           user.accessToken = accessToken;
 
-          // Google only sends a refresh token when consent is granted / one is issued.
           if (refreshToken) {
             user.refreshToken = refreshToken;
           }
 
           users.set(profile.id, user);
+
           console.log(`✅ Google authenticated: ${email}`);
-          console.log(`🔑 Access token: ${accessToken ? 'AVAILABLE' : 'MISSING'}`);
-          console.log(`🔄 Refresh token: ${user.refreshToken ? 'AVAILABLE' : 'MISSING'}`);
+          console.log(
+            `🔑 Access token: ${accessToken ? 'AVAILABLE' : 'MISSING'}`
+          );
+          console.log(
+            `🔄 Refresh token: ${
+              user.refreshToken ? 'AVAILABLE' : 'MISSING'
+            }`
+          );
 
           return done(null, user);
         } catch (error) {
@@ -94,19 +103,25 @@ async function startServer() {
   app.use(express.json());
   app.use(express.urlencoded({ extended: true }));
   app.use(cookieParser());
+
   app.use(
     cors({
       origin: true,
       credentials: true,
     })
   );
+
   app.use(passport.initialize());
 
+  // Health check for Render
   app.get('/health', (_req, res) => {
-    res.status(200).json({ status: 'ok', uptime: process.uptime() });
+    res.status(200).json({
+      status: 'ok',
+      uptime: process.uptime(),
+    });
   });
 
-  // Start Google OAuth — same flow as the working Project 2.
+  // Google OAuth login
   app.get(
     '/api/auth/google',
     passport.authenticate('google', {
@@ -120,7 +135,7 @@ async function startServer() {
     })
   );
 
-  // Google callback: create the same kind of JWT/cookie session as Project 2.
+  // Google OAuth callback
   app.get(
     '/api/auth/google/callback',
     passport.authenticate('google', {
@@ -143,7 +158,9 @@ async function startServer() {
             picture: user.picture,
           },
           JWT_SECRET,
-          { expiresIn: '7d' }
+          {
+            expiresIn: '7d',
+          }
         );
 
         const isProduction = process.env.NODE_ENV === 'production';
@@ -164,16 +181,23 @@ async function startServer() {
     }
   );
 
-  // Frontend calls this after the OAuth redirect to restore the logged-in user.
+  // Restore logged-in user
   app.get('/api/auth/me', (req, res) => {
     try {
       if (!JWT_SECRET) {
-        return res.status(500).json({ success: false, error: 'JWT_SECRET is not configured' });
+        return res.status(500).json({
+          success: false,
+          error: 'JWT_SECRET is not configured',
+        });
       }
 
       const token = req.cookies.token;
+
       if (!token) {
-        return res.status(401).json({ success: false, error: 'Not authenticated' });
+        return res.status(401).json({
+          success: false,
+          error: 'Not authenticated',
+        });
       }
 
       const decoded = jwt.verify(token, JWT_SECRET) as {
@@ -196,25 +220,42 @@ async function startServer() {
         driveAuthorized: Boolean(user?.refreshToken),
       });
     } catch {
-      return res.status(401).json({ success: false, error: 'Invalid or expired session' });
+      return res.status(401).json({
+        success: false,
+        error: 'Invalid or expired session',
+      });
     }
   });
 
+  // Logout
   app.post('/api/auth/logout', (_req, res) => {
-    res.clearCookie('token', { httpOnly: true, sameSite: 'lax', path: '/' });
-    res.json({ success: true });
+    res.clearCookie('token', {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+    });
+
+    res.json({
+      success: true,
+    });
   });
 
-  // Serve with Vite in dev mode, static files in production.
+  // Development: Vite middleware
+  // Production: serve built frontend from dist
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true },
+      server: {
+        middlewareMode: true,
+      },
       appType: 'spa',
     });
+
     app.use(vite.middlewares);
   } else {
     const distPath = path.join(process.cwd(), 'dist');
+
     app.use(express.static(distPath));
+
     app.get('*', (_req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
