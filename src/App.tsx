@@ -101,7 +101,7 @@ export default function App() {
     paperTemplate: 'grid',
     lineDarkness: 40,
     paperDarkness: 0,
-    palmRejection: true,
+    palmRejection:false,
     snapToStraightLine: false,
   });
 
