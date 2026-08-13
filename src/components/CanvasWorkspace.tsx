@@ -624,8 +624,8 @@ const CanvasWorkspaceInner: React.FC<CanvasWorkspaceProps> = ({
   useEffect(() => {
     const overlay = overlayCanvasRef.current;
     if (overlay) {
-      overlay.width = Math.max(1, Math.round(width * 1.5));
-      overlay.height = Math.max(1, Math.round(height * 1.5));
+      overlay.width = Math.max(1, Math.round(width));
+      overlay.height = Math.max(1, Math.round(height));
     }
   }, [width, height]);
 
@@ -783,7 +783,7 @@ const CanvasWorkspaceInner: React.FC<CanvasWorkspaceProps> = ({
 
   // Transform browser coordinates to Canvas Page space
   const getCanvasPoint = (e: { clientX: number; clientY: number; pressure?: number }): Point => {
-    const canvas = canvasRef.current || overlayCanvasRef.current;
+    const canvas = canvasRef.current;
     if (!canvas) return { x: 0, y: 0 };
 
     const rect = canvas.getBoundingClientRect();
@@ -827,7 +827,6 @@ const CanvasWorkspaceInner: React.FC<CanvasWorkspaceProps> = ({
 
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     ctx.save();
-    ctx.scale(2.0, 2.0);
 
     const liveStroke: StrokeAnnotation = {
       id: 'live_stroke',
@@ -851,7 +850,6 @@ const CanvasWorkspaceInner: React.FC<CanvasWorkspaceProps> = ({
 
     ctx.clearRect(0, 0, overlay.width, overlay.height);
     ctx.save();
-    ctx.scale(2.0, 2.0);
 
     drawShape(ctx, {
       shapeType: settings.shapeType,
@@ -921,7 +919,7 @@ const CanvasWorkspaceInner: React.FC<CanvasWorkspaceProps> = ({
     if (settings.activeTool === 'pan') return;
 
     e.preventDefault();
-    canvasRef.current?.setPointerCapture(e.pointerId);
+    e.currentTarget.setPointerCapture(e.pointerId);
 
     const pt = getCanvasPoint(e);
 
@@ -1053,7 +1051,7 @@ const CanvasWorkspaceInner: React.FC<CanvasWorkspaceProps> = ({
     e.preventDefault();
 
     try {
-      canvasRef.current?.releasePointerCapture(e.pointerId);
+      e.currentTarget.releasePointerCapture(e.pointerId);
     } catch {}
 
     isDrawingRef.current = false;
@@ -1214,16 +1212,18 @@ const CanvasWorkspaceInner: React.FC<CanvasWorkspaceProps> = ({
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}
+          onPointerCancel={handlePointerUp}
           onDoubleClick={handleCanvasDoubleClick}
-          className={`absolute inset-0 w-full h-full z-10 touch-none ${
+          className={`absolute inset-0 w-full h-full z-10 ${
             isReadMode
               ? 'pointer-events-none'
               : settings.activeTool === 'pan'
               ? 'cursor-grab active:cursor-grabbing'
-              : ''
+              : 'touch-none'
           }`}
           style={{
             cursor: getCursorStyle(),
+            touchAction: settings.activeTool === 'pan' ? 'auto' : 'none',
           }}
         />
 
